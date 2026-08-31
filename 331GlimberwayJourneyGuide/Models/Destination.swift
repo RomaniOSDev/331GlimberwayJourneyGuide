@@ -14,11 +14,11 @@ struct DepartureChecklistItem: Identifiable, Codable, Equatable {
 
 enum DepartureChecklist {
     static let defaultTitles = [
-        "Passport / ID ready",
-        "Tickets confirmed",
-        "Phone charged",
-        "Keys and wallet",
-        "Medications packed"
+        "Passport / ID in the leave pouch",
+        "Tickets saved offline",
+        "Phone at 100% + cable",
+        "Keys and wallet on the hook",
+        "Medications in the carry pouch"
     ]
 
     static func makeDefaultItems() -> [DepartureChecklistItem] {
@@ -36,6 +36,13 @@ struct Destination: Identifiable, Codable, Equatable {
     var checklistItems: [DepartureChecklistItem]
     var reminderEnabled: Bool
     var reminderDaysBefore: Int
+    var leaveMode: LeaveMode
+    var forecast: ForecastCondition
+    var bagLimitKg: Double
+    var airportMode: Bool
+    var timelineTasks: [TimelineTask]
+    var homeItems: [HomeLeaveItem]
+    var documents: [TravelDocument]
 
     init(
         id: UUID = UUID(),
@@ -46,7 +53,14 @@ struct Destination: Identifiable, Codable, Equatable {
         isVisited: Bool = false,
         checklistItems: [DepartureChecklistItem] = DepartureChecklist.makeDefaultItems(),
         reminderEnabled: Bool = false,
-        reminderDaysBefore: Int = 3
+        reminderDaysBefore: Int = 3,
+        leaveMode: LeaveMode = .flight,
+        forecast: ForecastCondition = .unset,
+        bagLimitKg: Double = 7,
+        airportMode: Bool = false,
+        timelineTasks: [TimelineTask] = [],
+        homeItems: [HomeLeaveItem] = [],
+        documents: [TravelDocument] = []
     ) {
         self.id = id
         self.country = country
@@ -57,11 +71,20 @@ struct Destination: Identifiable, Codable, Equatable {
         self.checklistItems = checklistItems
         self.reminderEnabled = reminderEnabled
         self.reminderDaysBefore = reminderDaysBefore
+        self.leaveMode = leaveMode
+        self.forecast = forecast
+        self.bagLimitKg = bagLimitKg
+        self.airportMode = airportMode
+        self.timelineTasks = timelineTasks.isEmpty ? TimelineCatalog.makeTasks(for: leaveMode) : timelineTasks
+        self.homeItems = homeItems.isEmpty ? HomeLeaveCatalog.makeItems() : homeItems
+        self.documents = documents
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, country, city, notes, plannedDate, isVisited
         case checklistItems, reminderEnabled, reminderDaysBefore
+        case leaveMode, forecast, bagLimitKg, airportMode
+        case timelineTasks, homeItems, documents
     }
 
     init(from decoder: Decoder) throws {
@@ -76,6 +99,15 @@ struct Destination: Identifiable, Codable, Equatable {
             ?? DepartureChecklist.makeDefaultItems()
         reminderEnabled = try container.decodeIfPresent(Bool.self, forKey: .reminderEnabled) ?? false
         reminderDaysBefore = try container.decodeIfPresent(Int.self, forKey: .reminderDaysBefore) ?? 3
+        leaveMode = try container.decodeIfPresent(LeaveMode.self, forKey: .leaveMode) ?? .flight
+        forecast = try container.decodeIfPresent(ForecastCondition.self, forKey: .forecast) ?? .unset
+        bagLimitKg = try container.decodeIfPresent(Double.self, forKey: .bagLimitKg) ?? 7
+        airportMode = try container.decodeIfPresent(Bool.self, forKey: .airportMode) ?? false
+        let decodedTasks = try container.decodeIfPresent([TimelineTask].self, forKey: .timelineTasks) ?? []
+        timelineTasks = decodedTasks.isEmpty ? TimelineCatalog.makeTasks(for: leaveMode) : decodedTasks
+        let decodedHome = try container.decodeIfPresent([HomeLeaveItem].self, forKey: .homeItems) ?? []
+        homeItems = decodedHome.isEmpty ? HomeLeaveCatalog.makeItems() : decodedHome
+        documents = try container.decodeIfPresent([TravelDocument].self, forKey: .documents) ?? []
     }
 
     var displayTitle: String {
@@ -99,27 +131,61 @@ struct Destination: Identifiable, Codable, Equatable {
         return Calendar.current.dateComponents([.day], from: start, to: trip).day
     }
 
+    var minutesUntilDeparture: Int? {
+        guard let plannedDate, !isVisited else { return nil }
+        return Int(plannedDate.timeIntervalSinceNow / 60)
+    }
+
     var checklistDoneCount: Int {
         checklistItems.filter(\.isDone).count
+    }
+
+    var timelineDoneCount: Int {
+        timelineTasks.filter(\.isDone).count
+    }
+
+    var homeDoneCount: Int {
+        homeItems.filter(\.isDone).count
+    }
+
+    var visibleTimelineTasks: [TimelineTask] {
+        let list = airportMode
+            ? timelineTasks.filter(\.airportRelevant)
+            : timelineTasks
+        return list.sorted { $0.minutesBeforeDeparture > $1.minutesBeforeDeparture }
+    }
+
+    var expiredDocumentCount: Int {
+        documents.filter(\.isExpired).count
+    }
+
+    var readinessPercent: Int {
+        let buckets: [Double] = [
+            checklistItems.isEmpty ? 1 : Double(checklistDoneCount) / Double(checklistItems.count),
+            timelineTasks.isEmpty ? 1 : Double(timelineDoneCount) / Double(timelineTasks.count),
+            homeItems.isEmpty ? 1 : Double(homeDoneCount) / Double(homeItems.count),
+            documents.isEmpty ? 0.35 : (expiredDocumentCount == 0 ? 1 : 0.4)
+        ]
+        return Int((buckets.reduce(0, +) / Double(buckets.count) * 100).rounded())
     }
 }
 
 enum DestinationFilter: String, CaseIterable, Identifiable {
     case all
-    case planned
-    case visited
-    case thisYear
-    case noDate
+    case leaving
+    case today
+    case later
+    case departed
 
     var id: String { rawValue }
 
     var title: String {
         switch self {
         case .all: return "All"
-        case .planned: return "Planned"
-        case .visited: return "Visited"
-        case .thisYear: return "This year"
-        case .noDate: return "No date"
+        case .leaving: return "Leaving soon"
+        case .today: return "Leave today"
+        case .later: return "Later"
+        case .departed: return "Already left"
         }
     }
 }

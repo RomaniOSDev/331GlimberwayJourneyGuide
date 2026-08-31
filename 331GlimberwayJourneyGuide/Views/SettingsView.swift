@@ -8,32 +8,35 @@ struct SettingsView: View {
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(spacing: 12) {
-                    settingsButton(title: "Rate Us", systemImage: "star.fill") {
-                        requestReview()
-                    }
-                    settingsButton(title: "Privacy Policy", systemImage: "hand.raised.fill") {
-                        if let url = URL(string: AppLinks.privacy) {
-                            UIApplication.shared.open(url)
+            ZStack {
+                LeaveAtmosphereBackground()
+                ScrollView {
+                    VStack(spacing: 12) {
+                        settingsButton(title: "Rate Us", systemImage: "star.fill") {
+                            requestReview()
+                        }
+                        settingsButton(title: "Privacy Policy", systemImage: "hand.raised.fill") {
+                            if let url = URL(string: AppLinks.privacy) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        settingsButton(title: "Terms of Use", systemImage: "doc.text.fill") {
+                            if let url = URL(string: AppLinks.terms) {
+                                UIApplication.shared.open(url)
+                            }
+                        }
+                        settingsButton(title: "Replay intro", systemImage: "sparkles") {
+                            store.resetOnboardingFlag()
+                            dismiss()
+                        }
+                        settingsButton(title: "Clear the desk", systemImage: "trash.fill", destructive: true) {
+                            showResetConfirm = true
                         }
                     }
-                    settingsButton(title: "Terms of Use", systemImage: "doc.text.fill") {
-                        if let url = URL(string: AppLinks.terms) {
-                            UIApplication.shared.open(url)
-                        }
-                    }
-                    settingsButton(title: "Replay Onboarding", systemImage: "sparkles") {
-                        store.resetOnboardingFlag()
-                        dismiss()
-                    }
-                    settingsButton(title: "Reset All Data", systemImage: "trash.fill", destructive: true) {
-                        showResetConfirm = true
-                    }
+                    .padding(16)
                 }
-                .padding(16)
+                .clearScrollBackground()
             }
-            .appScreenBackground()
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
@@ -44,16 +47,17 @@ struct SettingsView: View {
                 }
             }
             .confirmationDialog(
-                "Reset destinations, packing lists, and phrase notes?",
+                "Clear leaves, bag lists, house loops, and the document pouch?",
                 isPresented: $showResetConfirm,
                 titleVisibility: .visible
             ) {
-                Button("Reset All Data", role: .destructive) {
+                Button("Clear the desk", role: .destructive) {
                     store.resetAllData()
                 }
                 Button("Cancel", role: .cancel) {}
             }
         }
+        .background(Color.clear)
         .presentationDetents([.medium, .large])
     }
 

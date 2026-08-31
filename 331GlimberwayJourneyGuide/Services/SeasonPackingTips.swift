@@ -1,74 +1,78 @@
 import Foundation
 
-enum SeasonPackingTips {
-    enum Season: String {
-        case spring, summer, autumn, winter
+enum ForecastPackingAdvisor {
+    static func extras(for forecast: ForecastCondition, mode: LeaveMode) -> [(title: String, category: PackingCategory, grams: Int, placement: BagPlacement)] {
+        var items: [(String, PackingCategory, Int, BagPlacement)] = []
 
-        var title: String {
-            switch self {
-            case .spring: return "Spring"
-            case .summer: return "Summer"
-            case .autumn: return "Autumn"
-            case .winter: return "Winter"
-            }
+        switch forecast {
+        case .unset:
+            break
+        case .fair:
+            items += [
+                ("Cap or visor", .clothing, 80, .packed),
+                ("Sunglasses", .other, 40, .wear)
+            ]
+        case .rain:
+            items += [
+                ("Packable rain shell", .clothing, 280, .packed),
+                ("Compact umbrella", .other, 190, .packed),
+                ("Dry bag for electronics", .other, 60, .packed)
+            ]
+        case .heat:
+            items += [
+                ("Breathable shirt", .clothing, 140, .wear),
+                ("Electrolyte sachets", .other, 40, .packed),
+                ("Refill bottle (empty at security)", .other, 90, .packed)
+            ]
+        case .freeze:
+            items += [
+                ("Insulating mid-layer", .clothing, 320, .wear),
+                ("Gloves", .clothing, 80, .wear),
+                ("Lip balm", .toiletries, 20, .toiletry)
+            ]
+        case .mixed:
+            items += [
+                ("Light layer you can peel", .clothing, 220, .packed),
+                ("Thin rain shell", .clothing, 240, .packed)
+            ]
         }
+
+        if mode == .flight && (forecast == .rain || forecast == .mixed) {
+            items.append(("Spare socks in pouch", .clothing, 70, .packed))
+        }
+        if mode == .road && forecast == .freeze {
+            items.append(("Ice scraper already in car", .other, 0, .wear))
+        }
+
+        return items
     }
 
-    static func season(for date: Date) -> Season {
-        let month = Calendar.current.component(.month, from: date)
-        switch month {
-        case 3...5: return .spring
-        case 6...8: return .summer
-        case 9...11: return .autumn
-        default: return .winter
+    static func tipLines(for forecast: ForecastCondition, mode: LeaveMode) -> [String] {
+        var lines: [String] = []
+        switch forecast {
+        case .unset:
+            lines.append("Set the leave-day forecast so the bag list can add weather extras.")
+        case .fair:
+            lines.append("Fair weather: keep the bag light and wear the heavier shoes.")
+        case .rain:
+            lines.append("Rain leave: shell and dry bag go in the top pocket, not the bottom.")
+        case .heat:
+            lines.append("Hot leave: bottle stays empty through security; electrolytes in the pouch.")
+        case .freeze:
+            lines.append("Freeze leave: gloves and mid-layer stay on your body to save bag kilos.")
+        case .mixed:
+            lines.append("Mixed day: one peel layer in the bag, one on you.")
         }
-    }
-
-    static func tips(for destination: Destination) -> (season: Season, tips: [String]) {
-        let date = destination.plannedDate ?? Date()
-        let season = season(for: date)
-        let country = destination.country.lowercased()
-        var tips = baseTips(for: season)
-
-        if ["japan", "italy", "france", "spain"].contains(where: { country.contains($0) }) {
-            tips.append("City walking days: pack a light layer and comfy shoes.")
+        switch mode {
+        case .flight:
+            lines.append("Wear the coat. The scale only cares what is in the bag.")
+        case .road:
+            lines.append("Car weight does not replace a house loop before you lock.")
+        case .rail:
+            lines.append("Keep the ticket pouch in the jacket, not the hold bag.")
+        case .overnight:
+            lines.append("If you need a second bag, it is not an overnight.")
         }
-        if ["mexico", "cuba", "senegal", "morocco"].contains(where: { country.contains($0) }) {
-            tips.append("Warmer climate: prioritize sun protection and breathable clothes.")
-        }
-        if country.contains("switzerland") || country.contains("canada") {
-            tips.append("Cooler evenings are common — bring a warmer mid-layer.")
-        }
-
-        return (season, Array(tips.prefix(4)))
-    }
-
-    private static func baseTips(for season: Season) -> [String] {
-        switch season {
-        case .spring:
-            return [
-                "Expect mild days and cooler evenings — pack a light jacket.",
-                "A compact umbrella helps with spring showers.",
-                "Layers beat bulky coats for changing temperatures."
-            ]
-        case .summer:
-            return [
-                "Prioritize breathable clothes and sun protection.",
-                "Carry a refillable bottle for warm walking days.",
-                "A light cover-up helps in air-conditioned spaces."
-            ]
-        case .autumn:
-            return [
-                "Pack a waterproof shell for wind and rain.",
-                "Warm mid-layers are useful as evenings cool down.",
-                "Closed shoes handle wet sidewalks better than sandals."
-            ]
-        case .winter:
-            return [
-                "Focus on insulating layers, gloves, and a warm coat.",
-                "Lip balm and moisturizer help in dry cold air.",
-                "Keep documents in an inner pocket for quick access indoors."
-            ]
-        }
+        return lines
     }
 }

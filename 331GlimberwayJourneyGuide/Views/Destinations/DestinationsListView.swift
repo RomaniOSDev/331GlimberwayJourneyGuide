@@ -16,13 +16,17 @@ struct DestinationsListView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SectionBanner(imageName: "bannerPassport", height: 130)
+                SymbolHero(
+                    symbol: "door.left.hand.open",
+                    title: "Leave desk",
+                    subtitle: "One exit. House closed. Bag honest."
+                )
 
-                if store.hasFirstTripBadge {
-                    FirstTripBadge()
+                if let next = store.nextDeparture {
+                    ReadyScoreBadge(percent: next.readinessPercent)
                 }
 
-                TravelSearchField(placeholder: "Search destinations", text: $searchText)
+                TravelSearchField(placeholder: "Search a leave", text: $searchText)
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 8) {
@@ -47,12 +51,12 @@ struct DestinationsListView: View {
 
                 if items.isEmpty {
                     EmptyStateCard(
-                        symbol: searchText.isEmpty && filter == .all ? "mappin.and.ellipse" : "magnifyingglass",
-                        title: searchText.isEmpty && filter == .all ? "No places yet" : "Nothing matches",
+                        symbol: searchText.isEmpty && filter == .all ? "door.left.hand.open" : "magnifyingglass",
+                        title: searchText.isEmpty && filter == .all ? "No leave on the desk" : "Nothing matches",
                         message: searchText.isEmpty && filter == .all
-                            ? "Add your first destination, set a date, and open the trip hub for countdown, checklist, diary, and packing tips."
-                            : "Try another filter or clear the search to see more places.",
-                        actionTitle: searchText.isEmpty && filter == .all ? "Add Destination" : nil,
+                            ? "Add the next exit — time, mode, and a house loop. Dream lists stay out of this app."
+                            : "Try another filter or clear the search.",
+                        actionTitle: searchText.isEmpty && filter == .all ? "New leave" : nil,
                         action: searchText.isEmpty && filter == .all ? {
                             editingDestination = nil
                             showEditor = true
@@ -69,21 +73,21 @@ struct DestinationsListView: View {
                                     showEditor = true
                                 },
                                 onDelete: { destinationToDelete = destination },
-                                onMarkVisited: {
+                                onMarkLeft: {
                                     store.markDestinationVisited(destination, visited: !destination.isVisited)
                                 },
                                 onOpenPacking: {
                                     store.openPacking(for: destination)
                                 },
-                                onOpenPhrases: {
-                                    store.openSuggestedPhrases(for: destination)
+                                onOpenClock: {
+                                    store.openTimeline(for: destination)
                                 }
                             )
                         }
                     }
                 }
 
-                Button("Add Destination") {
+                Button("New leave") {
                     editingDestination = nil
                     showEditor = true
                 }
@@ -93,6 +97,7 @@ struct DestinationsListView: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 12)
         }
+        .clearScrollBackground()
         .scrollDismissesKeyboard(.interactively)
         .dismissKeyboardOnTap()
         .sheet(isPresented: $showEditor) {
@@ -104,7 +109,7 @@ struct DestinationsListView: View {
                 .environmentObject(store)
         }
         .confirmationDialog(
-            "Delete this destination?",
+            "Delete this leave?",
             isPresented: Binding(
                 get: { destinationToDelete != nil },
                 set: { if !$0 { destinationToDelete = nil } }
@@ -130,19 +135,21 @@ private struct DestinationRow: View {
     var onOpen: () -> Void
     var onEdit: () -> Void
     var onDelete: () -> Void
-    var onMarkVisited: () -> Void
+    var onMarkLeft: () -> Void
     var onOpenPacking: () -> Void
-    var onOpenPhrases: () -> Void
+    var onOpenClock: () -> Void
 
     private var dateLabel: String {
-        guard let date = destination.plannedDate else { return "Date not set" }
-        return date.formatted(date: .abbreviated, time: .omitted)
+        guard let date = destination.plannedDate else { return "Time not set" }
+        return date.formatted(date: .abbreviated, time: .shortened)
     }
 
     private var countdownLabel: String? {
-        guard let days = destination.daysUntilTrip else { return nil }
-        if days > 0 { return "\(days)d left" }
-        if days == 0 { return "Today" }
+        guard let minutes = destination.minutesUntilDeparture else { return nil }
+        if minutes <= 0 { return "Leave now" }
+        if minutes < 60 { return "\(minutes)m" }
+        if minutes < 24 * 60 { return "\(minutes / 60)h" }
+        if let days = destination.daysUntilTrip, days > 0 { return "\(days)d" }
         return nil
     }
 
@@ -154,7 +161,7 @@ private struct DestinationRow: View {
                         Text(destination.displayTitle)
                             .font(.headline)
                             .foregroundStyle(Color("AppTextPrimary"))
-                        Text(destination.isVisited ? "Visited" : "Planned")
+                        Text(destination.isVisited ? "Already left" : destination.leaveMode.title)
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(destination.isVisited ? Color.green.opacity(0.9) : Color("AppAccent"))
                     }
@@ -173,21 +180,15 @@ private struct DestinationRow: View {
             }
             .buttonStyle(.plain)
 
-            if !destination.notes.isEmpty {
-                Text(destination.notes)
-                    .font(.subheadline)
-                    .foregroundStyle(Color("AppTextSecondary"))
-            }
-
-            Text("Checklist \(destination.checklistDoneCount)/\(destination.checklistItems.count)")
+            Text("Ready \(destination.readinessPercent)% · House \(destination.homeDoneCount)/\(destination.homeItems.count) · Clock \(destination.timelineDoneCount)/\(destination.timelineTasks.count)")
                 .font(.caption)
                 .foregroundStyle(Color("AppTextSecondary"))
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    quickChip(destination.isVisited ? "Mark planned" : "Mark visited", action: onMarkVisited)
-                    quickChip("Packing", action: onOpenPacking)
-                    quickChip("Phrases", action: onOpenPhrases)
+                    quickChip(destination.isVisited ? "Still home" : "Mark left", action: onMarkLeft)
+                    quickChip("Clock", action: onOpenClock)
+                    quickChip("Bags", action: onOpenPacking)
                     quickChip("Edit", action: onEdit)
                     Button("Delete", role: .destructive, action: onDelete)
                         .font(.caption.weight(.semibold))

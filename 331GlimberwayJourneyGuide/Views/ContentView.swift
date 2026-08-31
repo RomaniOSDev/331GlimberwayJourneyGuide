@@ -14,5 +14,6 @@ struct ContentView: View {
             }
         }
         .environmentObject(store)
+        .background(Color.clear)
     }
 }

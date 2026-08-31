@@ -9,80 +9,109 @@ struct DestinationEditorSheet: View {
     @State private var country = ""
     @State private var city = ""
     @State private var notes = ""
-    @State private var hasPlannedDate = false
-    @State private var plannedDate = Date()
+    @State private var hasPlannedDate = true
+    @State private var plannedDate = Date().addingTimeInterval(36 * 60 * 60)
     @State private var isVisited = false
     @State private var createPackingList = true
+    @State private var leaveMode: LeaveMode = .flight
+    @State private var forecast: ForecastCondition = .unset
+    @State private var bagLimitKg: Double = 7
     @State private var errorMessage: String?
 
     private var isEditing: Bool { destination != nil }
 
     var body: some View {
         NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 14) {
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Place")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Color("AppTextPrimary"))
-                        TravelTextField(title: "Country", text: $country, submitLabel: .next)
-                        TravelTextField(title: "City", text: $city, submitLabel: .next)
-                    }
-                    .travelCard()
+            ZStack {
+                LeaveAtmosphereBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("Heading to")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color("AppTextPrimary"))
+                            TravelTextField(title: "City", text: $city, submitLabel: .next)
+                            TravelTextField(title: "Country", text: $country, submitLabel: .next)
+                        }
+                        .travelCard()
 
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("Details")
-                            .font(.subheadline.weight(.bold))
-                            .foregroundStyle(Color("AppTextPrimary"))
-
-                        Toggle("Set planned date", isOn: $hasPlannedDate)
-                            .foregroundStyle(Color("AppTextPrimary"))
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("How you leave")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color("AppTextPrimary"))
+                            Picker("Mode", selection: $leaveMode) {
+                                ForEach(LeaveMode.allCases) { mode in
+                                    Text(mode.title).tag(mode)
+                                }
+                            }
+                            .pickerStyle(.menu)
                             .tint(Color("AppAccent"))
 
-                        if hasPlannedDate {
-                            DatePicker(
-                                "Planned date",
-                                selection: $plannedDate,
-                                displayedComponents: .date
+                            Picker("Forecast on leave day", selection: $forecast) {
+                                ForEach(ForecastCondition.allCases) { item in
+                                    Text(item.title).tag(item)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(Color("AppAccent"))
+
+                            Toggle("Set leave time", isOn: $hasPlannedDate)
+                                .foregroundStyle(Color("AppTextPrimary"))
+                                .tint(Color("AppAccent"))
+
+                            if hasPlannedDate {
+                                DatePicker(
+                                    "Door time",
+                                    selection: $plannedDate,
+                                    displayedComponents: [.date, .hourAndMinute]
+                                )
+                                .foregroundStyle(Color("AppTextPrimary"))
+                                .tint(Color("AppAccent"))
+                                .colorScheme(.dark)
+                            }
+
+                            Toggle("Already left", isOn: $isVisited)
+                                .foregroundStyle(Color("AppTextPrimary"))
+                                .tint(Color("AppAccent"))
+
+                            VStack(alignment: .leading, spacing: 6) {
+                                Text("Bag limit \(bagLimitKg, specifier: "%.0f") kg")
+                                    .font(.caption.weight(.semibold))
+                                    .foregroundStyle(Color("AppTextSecondary"))
+                                Slider(value: $bagLimitKg, in: 5...32, step: 1)
+                                    .tint(Color("AppAccent"))
+                            }
+
+                            TravelTextField(
+                                title: "Door notes",
+                                text: $notes,
+                                axis: .vertical,
+                                lineLimit: 3...6
                             )
-                            .foregroundStyle(Color("AppTextPrimary"))
-                            .tint(Color("AppAccent"))
-                            .colorScheme(.dark)
+                        }
+                        .travelCard()
+
+                        if !isEditing {
+                            Toggle("Build a bag list from this mode", isOn: $createPackingList)
+                                .foregroundStyle(Color("AppTextPrimary"))
+                                .tint(Color("AppAccent"))
+                                .travelCard()
                         }
 
-                        Toggle("Already visited", isOn: $isVisited)
-                            .foregroundStyle(Color("AppTextPrimary"))
-                            .tint(Color("AppAccent"))
-
-                        TravelTextField(
-                            title: "Notes",
-                            text: $notes,
-                            axis: .vertical,
-                            lineLimit: 3...6
-                        )
+                        if let errorMessage {
+                            Text(errorMessage)
+                                .foregroundStyle(Color.red.opacity(0.95))
+                                .font(.footnote)
+                                .travelCard()
+                        }
                     }
-                    .travelCard()
-
-                    if !isEditing {
-                        Toggle("Create packing list for this trip", isOn: $createPackingList)
-                            .foregroundStyle(Color("AppTextPrimary"))
-                            .tint(Color("AppAccent"))
-                            .travelCard()
-                    }
-
-                    if let errorMessage {
-                        Text(errorMessage)
-                            .foregroundStyle(Color.red.opacity(0.95))
-                            .font(.footnote)
-                            .travelCard()
-                    }
+                    .padding(16)
                 }
-                .padding(16)
+                .clearScrollBackground()
             }
             .scrollDismissesKeyboard(.interactively)
             .dismissKeyboardOnTap()
-            .appScreenBackground()
-            .navigationTitle(isEditing ? "Edit Destination" : "New Destination")
+            .navigationTitle(isEditing ? "Edit leave" : "New leave")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
@@ -97,18 +126,19 @@ struct DestinationEditorSheet: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .onAppear(perform: populate)
         }
+        .background(Color.clear)
         .presentationDetents([.large])
     }
 
     private func populate() {
-        guard let destination else {
-            createPackingList = true
-            return
-        }
+        guard let destination else { return }
         country = destination.country
         city = destination.city
         notes = destination.notes
         isVisited = destination.isVisited
+        leaveMode = destination.leaveMode
+        forecast = destination.forecast
+        bagLimitKg = destination.bagLimitKg
         if let date = destination.plannedDate {
             hasPlannedDate = true
             plannedDate = date
@@ -126,16 +156,19 @@ struct DestinationEditorSheet: View {
                 city: city,
                 notes: notes,
                 plannedDate: date,
-                isVisited: isVisited
+                isVisited: isVisited,
+                leaveMode: leaveMode,
+                forecast: forecast,
+                bagLimitKg: bagLimitKg
             )
             if ok {
                 dismiss()
             } else {
-                errorMessage = "Enter country and city. Duplicate places are not allowed."
+                errorMessage = "Enter city and country. Duplicate leaves are not allowed."
             }
         } else {
             if store.isDuplicateDestination(country: country, city: city) {
-                errorMessage = "This country and city combination already exists."
+                errorMessage = "This city and country combination already exists."
                 return
             }
             if store.addDestination(
@@ -144,11 +177,14 @@ struct DestinationEditorSheet: View {
                 notes: notes,
                 plannedDate: date,
                 isVisited: isVisited,
-                createPackingList: createPackingList
+                createPackingList: createPackingList,
+                leaveMode: leaveMode,
+                forecast: forecast,
+                bagLimitKg: bagLimitKg
             ) != nil {
                 dismiss()
             } else {
-                errorMessage = "Could not save. Check country and city."
+                errorMessage = "Could not save. Check city and country."
             }
         }
     }

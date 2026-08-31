@@ -2,7 +2,7 @@ import SwiftUI
 
 struct MainShellView: View {
     @EnvironmentObject private var store: AppDataStore
-    @State private var selectedTab: JourneyTab = .destinations
+    @State private var selectedTab: JourneyTab = .leave
     @State private var showSettings = false
 
     var body: some View {
@@ -13,14 +13,12 @@ struct MainShellView: View {
 
             Group {
                 switch selectedTab {
-                case .destinations:
+                case .leave:
                     DestinationsListView()
-                case .packing:
+                case .clock:
+                    TimelineBoardView()
+                case .bags:
                     PackingTripsListView()
-                case .phrases:
-                    PhrasesGuideView()
-                case .stats:
-                    JourneyStatsView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -35,10 +33,11 @@ struct MainShellView: View {
             guard let target else { return }
             switch target {
             case .packing:
-                selectedTab = .packing
+                selectedTab = .bags
                 store.clearNavigationTarget()
-            case .phrases:
-                selectedTab = .phrases
+            case .timeline:
+                selectedTab = .clock
+                store.clearNavigationTarget()
             }
         }
     }

@@ -1,5 +1,6 @@
 import Foundation
 
 enum AppResources {
-    static let phraseLanguages = PhraseLanguage.allCases.map(\.title)
+    static let leaveModes = LeaveMode.allCases.map(\.title)
+    static let brandName = "Leave Desk"
 }
