@@ -9,9 +9,9 @@ struct PackingTripsListView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SymbolHero(
-                    symbol: "scalemass.fill",
-                    title: "Weigh the bag",
+                AssetHero(
+                    imageName: "imgSuitcase",
+                    title: "Bags",
                     subtitle: "On body does not count toward the limit."
                 )
 

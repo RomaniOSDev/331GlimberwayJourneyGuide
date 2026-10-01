@@ -7,19 +7,19 @@ struct OnboardingView: View {
 
     private let pages: [(symbol: String, title: String, body: String)] = [
         (
-            "door.left.hand.open",
-            "One leave at a time",
-            "Leave Desk is for the hours before you walk out — not a place to collect dream trips."
+            "checkmark.seal.fill",
+            "Door seal",
+            "You do not just tick ‘left’. Park up to three leftovers and tag a go-back if you already ran upstairs."
         ),
         (
-            "clock.arrow.circlepath",
-            "T−24h, T−3h, T−30m",
-            "The clock nags at the marks that actually matter: pouch, ride, and the last house pass."
+            "sunrise.fill",
+            "Return brief",
+            "The next leave opens with yesterday’s residue already on the pouch list."
         ),
         (
-            "scalemass.fill",
-            "Lock, weigh, share",
-            "Close the house, keep the coat on your body, and send a ready card when the bag is honest."
+            "dot.radiowaves.left.and.right",
+            "Go-back radar",
+            "Misses stack by kind and hour so the desk can suggest a quieter window."
         )
     ]
 

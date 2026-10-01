@@ -4,29 +4,66 @@ import Combine
 enum AppNavigationTarget: Equatable {
     case packing
     case timeline
+    case radar
 }
 
 final class AppDataStore: ObservableObject {
     @Published private(set) var destinations: [Destination] = []
     @Published private(set) var packingTrips: [PackingTrip] = []
+    @Published private(set) var doorSeals: [DoorSeal] = []
     @Published var hasCompletedOnboarding: Bool
     @Published var navigationTarget: AppNavigationTarget?
     @Published var focusPackingTripId: UUID?
     @Published var focusedDepartureId: UUID?
+    @Published var briefDismissedSealId: UUID?
 
     private let destinationsKey = "glimberway.destinations.v2"
     private let packingKey = "glimberway.packing.v2"
-    private let onboardingKey = "glimberway.onboarding.v2"
+    private let sealsKey = "glimberway.seals.v1"
+    private let onboardingKey = "glimberway.onboarding.v3"
+    private let briefDismissKey = "glimberway.briefDismiss.v1"
     private let legacyDestinationsKey = "glimberway.destinations.v1"
     private let legacyPackingKey = "glimberway.packing.v1"
     private let legacyOnboardingKey = "glimberway.onboarding.v1"
 
     init() {
         let fresh = UserDefaults.standard.bool(forKey: onboardingKey)
-        let legacy = UserDefaults.standard.bool(forKey: legacyOnboardingKey)
-        hasCompletedOnboarding = fresh || legacy
+        hasCompletedOnboarding = fresh
+        if let raw = UserDefaults.standard.string(forKey: briefDismissKey),
+           let id = UUID(uuidString: raw) {
+            briefDismissedSealId = id
+        }
         load()
         TripReminderService.rescheduleAll(for: destinations)
+    }
+
+    var lastSeal: DoorSeal? {
+        doorSeals.sorted { $0.sealedAt > $1.sealedAt }.first
+    }
+
+    var pendingBrief: DoorSeal? {
+        guard let seal = lastSeal else { return nil }
+        if briefDismissedSealId == seal.id { return nil }
+        if let next = nextDeparture, next.appliedSealId == seal.id { return nil }
+        return seal
+    }
+
+    var radarInsight: RadarInsight {
+        let kinds = doorSeals.compactMap(\.goBackKind)
+        var counts: [GoBackKind: Int] = [:]
+        for kind in kinds { counts[kind, default: 0] += 1 }
+        let top = counts.max(by: { $0.value < $1.value })?.key
+        var hours: [Int: Int] = [:]
+        for seal in doorSeals { hours[seal.hourOfDay, default: 0] += 1 }
+        let peak = hours.max(by: { $0.value < $1.value })?.key
+        let quiet = (0..<24).min { (hours[$0] ?? 0) < (hours[$1] ?? 0) }
+        return RadarInsight(
+            topMiss: top,
+            quietHour: doorSeals.isEmpty ? nil : quiet,
+            peakHour: peak,
+            sealCount: doorSeals.count,
+            goBackCount: kinds.count
+        )
     }
 
     var nextDeparture: Destination? {
@@ -132,6 +169,9 @@ final class AppDataStore: ObservableObject {
         destination.timelineTasks = TimelineCatalog.makeTasks(for: leaveMode)
         destination.homeItems = HomeLeaveCatalog.makeItems()
         destinations.append(destination)
+        if lastSeal != nil {
+            applyReturnBrief(to: destination.id)
+        }
         if createPackingList {
             _ = addPackingTrip(
                 tripName: destination.displayTitle,
@@ -195,6 +235,78 @@ final class AppDataStore: ObservableObject {
         }
         persist()
         TripReminderService.syncAll(for: destinations[index])
+    }
+
+    @discardableResult
+    func sealDoor(
+        for destination: Destination,
+        residue: [String],
+        goBackKind: GoBackKind?,
+        note: String
+    ) -> DoorSeal? {
+        guard let index = destinations.firstIndex(where: { $0.id == destination.id }) else { return nil }
+        let packing = packingTrip(forDestinationId: destination.id)
+        let trimmed = residue
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+            .prefix(3)
+        let seal = DoorSeal(
+            destinationId: destination.id,
+            title: destination.displayTitle,
+            residue: Array(trimmed),
+            houseDone: destination.homeDoneCount,
+            houseTotal: max(destination.homeItems.count, 1),
+            bagKg: packing?.bagWeightKg ?? 0,
+            bagLimitKg: packing?.weightLimitKg ?? destination.bagLimitKg,
+            goBackKind: goBackKind,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        doorSeals.append(seal)
+        destinations[index].isVisited = true
+        destinations[index].airportMode = false
+        persist()
+        TripReminderService.syncAll(for: destinations[index])
+        return seal
+    }
+
+    func applyReturnBrief(to destinationId: UUID) {
+        guard let seal = lastSeal else { return }
+        guard let index = destinations.firstIndex(where: { $0.id == destinationId }) else { return }
+        let existing = Set(destinations[index].checklistItems.map { $0.title.lowercased() })
+        for title in seal.residue where !existing.contains(title.lowercased()) {
+            destinations[index].checklistItems.append(
+                DepartureChecklistItem(title: "Carry: \(title)")
+            )
+        }
+        destinations[index].appliedSealId = seal.id
+        briefDismissedSealId = seal.id
+        UserDefaults.standard.set(seal.id.uuidString, forKey: briefDismissKey)
+        persist()
+    }
+
+    func dismissReturnBrief() {
+        guard let seal = lastSeal else { return }
+        briefDismissedSealId = seal.id
+        UserDefaults.standard.set(seal.id.uuidString, forKey: briefDismissKey)
+        objectWillChange.send()
+    }
+
+    func logStandaloneGoBack(_ kind: GoBackKind, note: String) {
+        let title = nextDeparture?.displayTitle ?? lastSeal?.title ?? "Desk"
+        let destinationId = nextDeparture?.id ?? lastSeal?.destinationId ?? UUID()
+        let seal = DoorSeal(
+            destinationId: destinationId,
+            title: title,
+            residue: [],
+            houseDone: nextDeparture?.homeDoneCount ?? 0,
+            houseTotal: max(nextDeparture?.homeItems.count ?? 0, 1),
+            bagKg: 0,
+            bagLimitKg: nextDeparture?.bagLimitKg ?? 7,
+            goBackKind: kind,
+            note: note.trimmingCharacters(in: .whitespacesAndNewlines)
+        )
+        doorSeals.append(seal)
+        persist()
     }
 
     func toggleChecklistItem(destinationId: UUID, itemId: UUID) {
@@ -416,6 +528,10 @@ final class AppDataStore: ObservableObject {
         navigationTarget = .timeline
     }
 
+    func openRadar() {
+        navigationTarget = .radar
+    }
+
     func clearNavigationTarget() {
         navigationTarget = nil
     }
@@ -427,7 +543,10 @@ final class AppDataStore: ObservableObject {
         }
         destinations = []
         packingTrips = []
+        doorSeals = []
         focusedDepartureId = nil
+        briefDismissedSealId = nil
+        UserDefaults.standard.removeObject(forKey: briefDismissKey)
         persist()
     }
 
@@ -456,6 +575,10 @@ final class AppDataStore: ObservableObject {
                   let decoded = try? decoder.decode([PackingTrip].self, from: data) {
             packingTrips = decoded
         }
+        if let data = UserDefaults.standard.data(forKey: sealsKey),
+           let decoded = try? decoder.decode([DoorSeal].self, from: data) {
+            doorSeals = decoded
+        }
     }
 
     private func persist() {
@@ -465,6 +588,9 @@ final class AppDataStore: ObservableObject {
         }
         if let data = try? encoder.encode(packingTrips) {
             UserDefaults.standard.set(data, forKey: packingKey)
+        }
+        if let data = try? encoder.encode(doorSeals) {
+            UserDefaults.standard.set(data, forKey: sealsKey)
         }
     }
 }

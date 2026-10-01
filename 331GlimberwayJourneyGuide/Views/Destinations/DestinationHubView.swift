@@ -9,6 +9,7 @@ struct DestinationHubView: View {
     @State private var showEditor = false
     @State private var showWallet = false
     @State private var showShare = false
+    @State private var showSeal = false
     @State private var reminderDays: Int = 3
 
     private var destination: Destination? {
@@ -70,6 +71,12 @@ struct DestinationHubView: View {
             .sheet(isPresented: $showShare) {
                 if let destination {
                     LeaveShareSheet(destination: destination)
+                        .environmentObject(store)
+                }
+            }
+            .sheet(isPresented: $showSeal) {
+                if let destination {
+                    DoorSealSheet(destination: destination)
                         .environmentObject(store)
                 }
             }
@@ -333,11 +340,19 @@ struct DestinationHubView: View {
 
     private func actions(_ destination: Destination) -> some View {
         VStack(spacing: 10) {
-            Button(destination.isVisited ? "Still home" : "Mark as left") {
-                store.markDestinationVisited(destination, visited: !destination.isVisited)
+            if destination.isVisited {
+                Button("Still home") {
+                    store.markDestinationVisited(destination, visited: false)
+                }
+                .buttonStyle(PrimaryGradientButtonStyle())
+                .frame(maxWidth: .infinity)
+            } else {
+                Button("Seal the door") {
+                    showSeal = true
+                }
+                .buttonStyle(PrimaryGradientButtonStyle())
+                .frame(maxWidth: .infinity)
             }
-            .buttonStyle(PrimaryGradientButtonStyle())
-            .frame(maxWidth: .infinity)
 
             Button("Weigh the bag") {
                 store.openPacking(for: destination)
@@ -352,5 +367,92 @@ struct DestinationHubView: View {
             .buttonStyle(PrimaryGradientButtonStyle())
             .frame(maxWidth: .infinity)
         }
+    }
+}
+
+struct DoorSealSheet: View {
+    @EnvironmentObject private var store: AppDataStore
+    @Environment(\.dismiss) private var dismiss
+
+    let destination: Destination
+
+    @State private var residue1 = ""
+    @State private var residue2 = ""
+    @State private var residue3 = ""
+    @State private var goBack: GoBackKind?
+    @State private var note = ""
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                LeaveAtmosphereBackground()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Door seal")
+                                .font(.headline)
+                                .foregroundStyle(Color("AppTextPrimary"))
+                            Text("Park up to three leftovers for the next Return Brief. Tag a go-back if you already ran upstairs once.")
+                                .font(.caption)
+                                .foregroundStyle(Color("AppTextSecondary"))
+                            Text("House \(destination.homeDoneCount)/\(destination.homeItems.count) · Ready \(destination.readinessPercent)%")
+                                .font(.caption.weight(.semibold))
+                                .foregroundStyle(Color("AppAccent"))
+                        }
+                        .travelCard()
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Residue for tomorrow")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color("AppTextPrimary"))
+                            TravelTextField(title: "Carry 1", text: $residue1)
+                            TravelTextField(title: "Carry 2", text: $residue2)
+                            TravelTextField(title: "Carry 3", text: $residue3)
+                        }
+                        .travelCard()
+
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text("Go-back tag")
+                                .font(.subheadline.weight(.bold))
+                                .foregroundStyle(Color("AppTextPrimary"))
+                            Picker("Miss", selection: $goBack) {
+                                Text("None").tag(Optional<GoBackKind>.none)
+                                ForEach(GoBackKind.allCases) { kind in
+                                    Text(kind.title).tag(Optional(kind))
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            .tint(Color("AppAccent"))
+                            TravelTextField(title: "Note (optional)", text: $note)
+                        }
+                        .travelCard()
+
+                        Button("Seal and leave") {
+                            _ = store.sealDoor(
+                                for: destination,
+                                residue: [residue1, residue2, residue3],
+                                goBackKind: goBack,
+                                note: note
+                            )
+                            dismiss()
+                        }
+                        .buttonStyle(PrimaryGradientButtonStyle())
+                        .frame(maxWidth: .infinity)
+                    }
+                    .padding(16)
+                }
+                .clearScrollBackground()
+            }
+            .navigationTitle("Seal the door")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                        .foregroundStyle(Color("AppTextSecondary"))
+                }
+            }
+        }
+        .background(Color.clear)
     }
 }

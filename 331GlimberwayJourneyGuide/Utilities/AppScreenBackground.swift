@@ -3,43 +3,22 @@ import SwiftUI
 struct LeaveAtmosphereBackground: View {
     var body: some View {
         ZStack {
+            Color("AppBackground")
+            Image("bgRoadTrip")
+                .resizable()
+                .scaledToFill()
+                .opacity(0.42)
             LinearGradient(
                 colors: [
-                    Color("AppBackground"),
-                    Color("AppPrimary").opacity(0.55),
-                    Color("AppBackground")
+                    Color("AppBackground").opacity(0.55),
+                    Color("AppBackground").opacity(0.82)
                 ],
-                startPoint: .topLeading,
-                endPoint: .bottomTrailing
+                startPoint: .top,
+                endPoint: .bottom
             )
-
-            GeometryReader { geo in
-                Canvas { context, size in
-                    let step: CGFloat = 28
-                    var x: CGFloat = 16
-                    while x < size.width {
-                        var y: CGFloat = 20
-                        while y < size.height {
-                            let tick = Path(ellipseIn: CGRect(x: x, y: y, width: 1.6, height: 1.6))
-                            context.fill(tick, with: .color(Color.white.opacity(0.07)))
-                            y += step
-                        }
-                        x += step
-                    }
-
-                    let ring = Path(ellipseIn: CGRect(
-                        x: size.width * 0.55,
-                        y: -size.height * 0.12,
-                        width: size.width * 0.7,
-                        height: size.width * 0.7
-                    ))
-                    context.stroke(ring, with: .color(Color("AppAccent").opacity(0.12)), lineWidth: 18)
-                }
-                .allowsHitTesting(false)
-                .frame(width: geo.size.width, height: geo.size.height)
-            }
         }
         .ignoresSafeArea()
+        .allowsHitTesting(false)
     }
 }
 

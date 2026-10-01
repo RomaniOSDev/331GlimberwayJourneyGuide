@@ -47,7 +47,7 @@ struct SettingsView: View {
                 }
             }
             .confirmationDialog(
-                "Clear leaves, bag lists, house loops, and the document pouch?",
+                "Clear leaves, bag lists, door seals, and the document pouch?",
                 isPresented: $showResetConfirm,
                 titleVisibility: .visible
             ) {

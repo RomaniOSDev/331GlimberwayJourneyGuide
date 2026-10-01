@@ -43,6 +43,7 @@ struct Destination: Identifiable, Codable, Equatable {
     var timelineTasks: [TimelineTask]
     var homeItems: [HomeLeaveItem]
     var documents: [TravelDocument]
+    var appliedSealId: UUID?
 
     init(
         id: UUID = UUID(),
@@ -60,7 +61,8 @@ struct Destination: Identifiable, Codable, Equatable {
         airportMode: Bool = false,
         timelineTasks: [TimelineTask] = [],
         homeItems: [HomeLeaveItem] = [],
-        documents: [TravelDocument] = []
+        documents: [TravelDocument] = [],
+        appliedSealId: UUID? = nil
     ) {
         self.id = id
         self.country = country
@@ -78,13 +80,14 @@ struct Destination: Identifiable, Codable, Equatable {
         self.timelineTasks = timelineTasks.isEmpty ? TimelineCatalog.makeTasks(for: leaveMode) : timelineTasks
         self.homeItems = homeItems.isEmpty ? HomeLeaveCatalog.makeItems() : homeItems
         self.documents = documents
+        self.appliedSealId = appliedSealId
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, country, city, notes, plannedDate, isVisited
         case checklistItems, reminderEnabled, reminderDaysBefore
         case leaveMode, forecast, bagLimitKg, airportMode
-        case timelineTasks, homeItems, documents
+        case timelineTasks, homeItems, documents, appliedSealId
     }
 
     init(from decoder: Decoder) throws {
@@ -108,6 +111,7 @@ struct Destination: Identifiable, Codable, Equatable {
         let decodedHome = try container.decodeIfPresent([HomeLeaveItem].self, forKey: .homeItems) ?? []
         homeItems = decodedHome.isEmpty ? HomeLeaveCatalog.makeItems() : decodedHome
         documents = try container.decodeIfPresent([TravelDocument].self, forKey: .documents) ?? []
+        appliedSealId = try container.decodeIfPresent(UUID.self, forKey: .appliedSealId)
     }
 
     var displayTitle: String {

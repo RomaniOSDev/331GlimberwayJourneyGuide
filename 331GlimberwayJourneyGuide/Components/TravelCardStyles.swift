@@ -24,24 +24,22 @@ struct TravelCardModifier: ViewModifier {
     func body(content: Content) -> some View {
         content
             .padding(14)
+            .padding(.leading, 6)
             .background(
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            colors: [
-                                Color("AppSurface").opacity(0.92),
-                                Color("AppPrimary").opacity(0.28)
-                            ],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
-                    )
+                ZStack(alignment: .leading) {
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(Color("AppSurface").opacity(0.94))
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(Color("AppAccent").opacity(0.16), lineWidth: 1)
+                    Rectangle()
+                        .fill(Color("AppAccent"))
+                        .frame(width: 4)
+                        .clipShape(RoundedRectangle(cornerRadius: 2, style: .continuous))
+                        .padding(.vertical, 10)
+                        .padding(.leading, 6)
+                }
             )
-            .shadow(color: Color.black.opacity(0.22), radius: 12, y: 5)
+            .shadow(color: Color.black.opacity(0.28), radius: 10, y: 5)
     }
 }
 
@@ -51,33 +49,25 @@ extension View {
     }
 }
 
-struct SymbolHero: View {
-    let symbol: String
+struct AssetHero: View {
+    let imageName: String
     let title: String
     let subtitle: String
     var height: CGFloat = 128
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
+            Image(imageName)
+                .resizable()
+                .scaledToFill()
+                .frame(maxWidth: .infinity)
+                .frame(height: height)
+                .clipped()
             LinearGradient(
-                colors: [
-                    Color("AppAccent").opacity(0.55),
-                    Color("AppPrimary").opacity(0.25),
-                    Color("AppSurface").opacity(0.4)
-                ],
-                startPoint: .topTrailing,
-                endPoint: .bottomLeading
+                colors: [Color("AppBackground").opacity(0.88), Color.clear],
+                startPoint: .bottom,
+                endPoint: .top
             )
-
-            HStack {
-                Spacer()
-                Image(systemName: symbol)
-                    .font(.system(size: 64, weight: .semibold))
-                    .foregroundStyle(Color.white.opacity(0.18))
-                    .padding(.trailing, 18)
-                    .padding(.top, 8)
-            }
-
             VStack(alignment: .leading, spacing: 4) {
                 Text(title)
                     .font(.title3.weight(.bold))
@@ -91,6 +81,26 @@ struct SymbolHero: View {
         .frame(maxWidth: .infinity)
         .frame(height: height)
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+    }
+}
+
+struct SymbolHero: View {
+    let symbol: String
+    let title: String
+    let subtitle: String
+    var height: CGFloat = 128
+
+    var body: some View {
+        AssetHero(imageName: imageName(for: symbol), title: title, subtitle: subtitle, height: height)
+    }
+
+    private func imageName(for symbol: String) -> String {
+        switch symbol {
+        case "clock.arrow.circlepath", "clock.fill": return "imgPhrases"
+        case "scalemass.fill", "bag.fill": return "imgSuitcase"
+        case "dot.radiowaves.left.and.right": return "bannerPassport"
+        default: return "bannerPassport"
+        }
     }
 }
 
@@ -116,27 +126,19 @@ struct SectionBanner: View {
     var height: CGFloat = 120
 
     var body: some View {
-        SymbolHero(
-            symbol: symbol(for: imageName),
+        AssetHero(
+            imageName: imageName,
             title: title(for: imageName),
             subtitle: subtitle(for: imageName),
             height: height
         )
     }
 
-    private func symbol(for name: String) -> String {
-        switch name {
-        case "imgSuitcase": return "bag.fill"
-        case "imgPhrases": return "clock.fill"
-        default: return "door.left.hand.open"
-        }
-    }
-
     private func title(for name: String) -> String {
         switch name {
         case "imgSuitcase": return "Weigh the bag"
         case "imgPhrases": return "Leave clock"
-        default: return "Leave desk"
+        default: return "Desk"
         }
     }
 
@@ -144,7 +146,7 @@ struct SectionBanner: View {
         switch name {
         case "imgSuitcase": return "On body does not count toward the limit"
         case "imgPhrases": return "T−24h · T−3h · T−30m"
-        default: return "Get out the door without a second trip upstairs"
+        default: return "Seal the door. Brief the next leave."
         }
     }
 }

@@ -19,6 +19,8 @@ struct MainShellView: View {
                     TimelineBoardView()
                 case .bags:
                     PackingTripsListView()
+                case .radar:
+                    RadarBoardView()
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -37,6 +39,9 @@ struct MainShellView: View {
                 store.clearNavigationTarget()
             case .timeline:
                 selectedTab = .clock
+                store.clearNavigationTarget()
+            case .radar:
+                selectedTab = .radar
                 store.clearNavigationTarget()
             }
         }

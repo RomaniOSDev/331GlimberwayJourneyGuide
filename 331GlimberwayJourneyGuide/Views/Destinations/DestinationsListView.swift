@@ -16,11 +16,24 @@ struct DestinationsListView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SymbolHero(
-                    symbol: "door.left.hand.open",
-                    title: "Leave desk",
-                    subtitle: "One exit. House closed. Bag honest."
+                AssetHero(
+                    imageName: "bannerPassport",
+                    title: "Desk",
+                    subtitle: "Seal the door. Brief the next leave."
                 )
+
+                if let brief = store.pendingBrief {
+                    ReturnBriefCard(
+                        seal: brief,
+                        canApply: store.nextDeparture != nil,
+                        onApply: {
+                            if let id = store.nextDeparture?.id {
+                                store.applyReturnBrief(to: id)
+                            }
+                        },
+                        onDismiss: { store.dismissReturnBrief() }
+                    )
+                }
 
                 if let next = store.nextDeparture {
                     ReadyScoreBadge(percent: next.readinessPercent)
@@ -186,7 +199,7 @@ private struct DestinationRow: View {
 
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 8) {
-                    quickChip(destination.isVisited ? "Still home" : "Mark left", action: onMarkLeft)
+                    quickChip(destination.isVisited ? "Still home" : "Seal door", action: destination.isVisited ? onMarkLeft : onOpen)
                     quickChip("Clock", action: onOpenClock)
                     quickChip("Bags", action: onOpenPacking)
                     quickChip("Edit", action: onEdit)
@@ -208,5 +221,46 @@ private struct DestinationRow: View {
                 .foregroundStyle(Color("AppTextPrimary"))
         }
         .buttonStyle(.plain)
+    }
+}
+
+struct ReturnBriefCard: View {
+    let seal: DoorSeal
+    var canApply: Bool
+    var onApply: () -> Void
+    var onDismiss: () -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text("Return brief")
+                .font(.headline)
+                .foregroundStyle(Color("AppTextPrimary"))
+            Text("Last door seal · \(seal.title)")
+                .font(.caption.weight(.semibold))
+                .foregroundStyle(Color("AppAccent"))
+            if seal.residue.isEmpty {
+                Text("No residue was parked. House \(seal.houseDone)/\(seal.houseTotal).")
+                    .font(.subheadline)
+                    .foregroundStyle(Color("AppTextSecondary"))
+            } else {
+                ForEach(seal.residue, id: \.self) { item in
+                    Text("Carry · \(item)")
+                        .font(.subheadline)
+                        .foregroundStyle(Color("AppTextPrimary"))
+                }
+            }
+            HStack {
+                if canApply {
+                    Button("Carry into next leave", action: onApply)
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(Color("AppAccent"))
+                }
+                Spacer()
+                Button("Dismiss", action: onDismiss)
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(Color("AppTextSecondary"))
+            }
+        }
+        .travelCard()
     }
 }

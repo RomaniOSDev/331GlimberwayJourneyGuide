@@ -8,10 +8,10 @@ struct TimelineBoardView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
-                SymbolHero(
-                    symbol: "clock.arrow.circlepath",
-                    title: "Leave clock",
-                    subtitle: "Marks fire from the door time you set."
+                AssetHero(
+                    imageName: "imgPhrases",
+                    title: "Clock",
+                    subtitle: "T−24h · T−3h · T−30m from door time."
                 )
 
                 if let departure {
